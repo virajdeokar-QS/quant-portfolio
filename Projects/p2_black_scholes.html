@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P2: Black-Scholes Options Pricer | Viraj Quant</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:     #04080F; --bg2: #080E1A; --panel: #0F1B2D;
+    --border: #1A2B42; --border2: #243A56;
+    --cyan:   #00D4FF; --green: #00FF88; --amber: #FFB800;
+    --red:    #FF3D5A; --blue: #2979FF;
+    --text:   #C8D8E8; --text2: #7A9AB8; --text3: #3D5A78;
+    --white:  #EEF4FA;
+    --mono:   'IBM Plex Mono', monospace;
+    --sans:   'IBM Plex Sans', sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:var(--sans); font-size:14px; line-height:1.6;
+  }
+
+  /* NAV */
+  nav {
+    height:48px; background:var(--bg2); border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 32px; position:sticky; top:0; z-index:100;
+  }
+  .nav-back { font-family:var(--mono); font-size:11px; color:var(--text2);
+    text-decoration:none; }
+  .nav-back:hover { color:var(--cyan); }
+  .nav-title { font-family:var(--mono); font-size:12px; color:var(--white); }
+  .nav-live { font-family:var(--mono); font-size:10px; color:var(--green);
+    display:flex; align-items:center; gap:6px; }
+  .dot { width:6px; height:6px; border-radius:50%; background:var(--green);
+    animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* LAYOUT */
+  .page { max-width:1200px; margin:0 auto; padding:32px; }
+
+  .page-header { margin-bottom:32px; }
+  .page-header h1 { font-family:var(--mono); font-size:24px; color:var(--white);
+    margin-bottom:8px; }
+  .page-header p { font-size:13px; color:var(--text2); max-width:680px; }
+
+  .main-grid {
+    display:grid; grid-template-columns:360px 1fr;
+    gap:20px; margin-bottom:24px;
+  }
+
+  /* INPUTS PANEL */
+  .input-panel {
+    background:var(--panel); border:1px solid var(--border);
+    padding:24px; display:flex; flex-direction:column; gap:20px;
+  }
+
+  .panel-title {
+    font-family:var(--mono); font-size:10px; color:var(--cyan);
+    letter-spacing:0.12em; text-transform:uppercase;
+    padding-bottom:12px; border-bottom:1px solid var(--border);
+  }
+
+  .input-group { display:flex; flex-direction:column; gap:6px; }
+  .input-group label {
+    font-family:var(--mono); font-size:10px; color:var(--text3);
+    letter-spacing:0.08em; text-transform:uppercase;
+  }
+  .input-group .hint {
+    font-size:10px; color:var(--text3); line-height:1.4; margin-top:2px;
+  }
+
+  input[type=range] {
+    width:100%; accent-color:var(--cyan); cursor:pointer;
+  }
+
+  .val-display {
+    font-family:var(--mono); font-size:18px; color:var(--white);
+    font-weight:500; text-align:right;
+  }
+
+  .input-row { display:flex; justify-content:space-between; align-items:center; }
+
+  .stock-selector {
+    display:grid; grid-template-columns:1fr 1fr; gap:6px;
+  }
+
+  .stock-btn {
+    font-family:var(--mono); font-size:10px; padding:6px 10px;
+    background:transparent; border:1px solid var(--border2);
+    color:var(--text2); cursor:pointer; transition:all 0.15s;
+    letter-spacing:0.04em;
+  }
+  .stock-btn.active {
+    background:rgba(0,212,255,0.1); border-color:var(--cyan); color:var(--cyan);
+  }
+  .stock-btn:hover { border-color:var(--cyan); color:var(--cyan); }
+
+  /* RESULTS PANEL */
+  .results-panel {
+    background:var(--panel); border:1px solid var(--border); padding:24px;
+  }
+
+  /* PRICE DISPLAY */
+  .price-row {
+    display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;
+  }
+  .price-box {
+    background:var(--bg2); border:1px solid var(--border);
+    padding:16px 20px;
+  }
+  .price-box label {
+    font-family:var(--mono); font-size:9px; color:var(--text3);
+    letter-spacing:0.1em; text-transform:uppercase; display:block;
+    margin-bottom:6px;
+  }
+  .price-box .big {
+    font-family:var(--mono); font-size:32px; font-weight:600;
+    color:var(--white);
+  }
+  .price-box.call .big { color:var(--green); }
+  .price-box.put  .big { color:var(--red);   }
+
+  /* GREEKS TABLE */
+  .greeks-grid {
+    display:grid; grid-template-columns:repeat(5,1fr); gap:1px;
+    background:var(--border); margin-bottom:20px;
+  }
+  .greek-cell {
+    background:var(--bg2); padding:14px 12px; text-align:center;
+  }
+  .greek-cell .symbol {
+    font-family:var(--mono); font-size:20px; font-weight:600;
+    color:var(--cyan); display:block; margin-bottom:4px;
+  }
+  .greek-cell .name {
+    font-family:var(--mono); font-size:9px; color:var(--text3);
+    letter-spacing:0.08em; text-transform:uppercase; display:block;
+    margin-bottom:8px;
+  }
+  .greek-cell .val-c {
+    font-family:var(--mono); font-size:13px; color:var(--green);
+    display:block; margin-bottom:2px;
+  }
+  .greek-cell .val-p {
+    font-family:var(--mono); font-size:13px; color:var(--red);
+    display:block;
+  }
+  .greek-cell .labels {
+    font-family:var(--mono); font-size:8px; color:var(--text3);
+    display:flex; justify-content:space-between; margin-top:4px;
+  }
+
+  /* CHARTS ROW */
+  .charts-row {
+    display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px;
+  }
+  .chart-box {
+    background:var(--panel); border:1px solid var(--border); padding:20px;
+  }
+  .chart-box h3 {
+    font-family:var(--mono); font-size:10px; color:var(--cyan);
+    letter-spacing:0.1em; text-transform:uppercase; margin-bottom:16px;
+  }
+  canvas { max-height:220px; }
+
+  /* MATH SECTION */
+  .math-section {
+    background:var(--panel); border:1px solid var(--border);
+    border-top:2px solid var(--cyan); padding:28px; margin-bottom:24px;
+  }
+  .math-section h2 {
+    font-family:var(--mono); font-size:14px; color:var(--white);
+    margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid var(--border);
+  }
+  .math-grid { display:grid; grid-template-columns:1fr 1fr; gap:32px; }
+
+  .formula-block { margin-bottom:20px; }
+  .formula-block h4 {
+    font-family:var(--mono); font-size:11px; color:var(--amber);
+    margin-bottom:10px; letter-spacing:0.06em;
+  }
+  .formula {
+    font-family:var(--mono); font-size:13px;
+    background:#020408; border:1px solid var(--border);
+    padding:14px 16px; color:var(--green); line-height:2;
+    overflow-x:auto;
+  }
+  .explain {
+    font-size:12px; color:var(--text2); margin-top:8px;
+    line-height:1.7; padding-left:4px;
+  }
+  .explain strong { color:var(--text); }
+
+  /* PUT CALL PARITY */
+  .parity-box {
+    background:#020408; border:1px solid var(--border);
+    border-left:3px solid var(--amber); padding:16px 20px;
+    margin-bottom:20px;
+  }
+  .parity-box h4 {
+    font-family:var(--mono); font-size:10px; color:var(--amber);
+    letter-spacing:0.1em; text-transform:uppercase; margin-bottom:8px;
+  }
+  .parity-box .formula-line {
+    font-family:var(--mono); font-size:13px; color:var(--white);
+    margin-bottom:4px;
+  }
+  .parity-box .check {
+    font-family:var(--mono); font-size:11px; color:var(--text2); margin-top:8px;
+  }
+  .parity-box .check .ok { color:var(--green); }
+
+  /* IV OUTPUT */
+  .iv-row {
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px;
+    margin-top:20px;
+  }
+  .iv-cell {
+    background:var(--bg2); border:1px solid var(--border); padding:14px;
+    text-align:center;
+  }
+  .iv-cell label {
+    font-family:var(--mono); font-size:9px; color:var(--text3);
+    letter-spacing:0.1em; text-transform:uppercase; display:block;
+    margin-bottom:6px;
+  }
+  .iv-cell .iv-val {
+    font-family:var(--mono); font-size:20px; color:var(--amber); font-weight:600;
+  }
+
+  /* EXPLANATION CARDS */
+  .explain-grid {
+    display:grid; grid-template-columns:repeat(3,1fr); gap:16px;
+    margin-bottom:24px;
+  }
+  .explain-card {
+    background:var(--panel); border:1px solid var(--border); padding:20px;
+  }
+  .explain-card h3 {
+    font-family:var(--mono); font-size:11px; color:var(--cyan);
+    letter-spacing:0.08em; text-transform:uppercase; margin-bottom:12px;
+  }
+  .explain-card p {
+    font-size:12px; color:var(--text2); line-height:1.7;
+  }
+  .explain-card strong { color:var(--text); }
+
+  @media(max-width:900px){
+    .main-grid { grid-template-columns:1fr; }
+    .greeks-grid { grid-template-columns:repeat(3,1fr); }
+    .charts-row { grid-template-columns:1fr; }
+    .math-grid { grid-template-columns:1fr; }
+    .explain-grid { grid-template-columns:1fr; }
+    .iv-row { grid-template-columns:1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-back">← Portfolio</a>
+  <div class="nav-title">PROJECT 02 — Black-Scholes Options Pricer</div>
+  <div class="nav-live"><div class="dot"></div>LIVE COMPUTATION</div>
+</nav>
+
+<div class="page">
+  <div class="page-header">
+    <h1>Black-Scholes Options Pricer</h1>
+    <p>
+      Real-time option pricing using the Black-Scholes model. Computes call & put prices,
+      all five Greeks (Δ Γ ν θ ρ), implied volatility via Newton-Raphson iteration,
+      and validates Put-Call Parity. Adjust any parameter and watch everything update instantly.
+    </p>
+  </div>
+
+  <!-- MAIN GRID: inputs + results -->
+  <div class="main-grid">
+
+    <!-- INPUT PANEL -->
+    <div class="input-panel">
+      <div class="panel-title">Model Inputs</div>
+
+      <div>
+        <div class="panel-title" style="font-size:9px;color:var(--text3);border:none;padding:0;margin-bottom:8px">
+          PRESET — NSE STOCKS
+        </div>
+        <div class="stock-selector">
+          <button class="stock-btn active" onclick="loadPreset('NIFTY')">NIFTY 50</button>
+          <button class="stock-btn" onclick="loadPreset('HDFC')">HDFCBANK</button>
+          <button class="stock-btn" onclick="loadPreset('BAJAJ')">BAJFINANCE</button>
+          <button class="stock-btn" onclick="loadPreset('RELIANCE')">RELIANCE</button>
+          <button class="stock-btn" onclick="loadPreset('INFY')">INFOSYS</button>
+          <button class="stock-btn" onclick="loadPreset('ICICI')">ICICIBANK</button>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <div class="input-row">
+          <label>Stock Price (S) — ₹</label>
+          <div class="val-display" id="S-val">22,450</div>
+        </div>
+        <input type="range" id="S" min="100" max="50000" value="22450" step="50"
+               oninput="update()">
+        <div class="hint">Current market price of the underlying asset</div>
+      </div>
+
+      <div class="input-group">
+        <div class="input-row">
+          <label>Strike Price (K) — ₹</label>
+          <div class="val-display" id="K-val">22,500</div>
+        </div>
+        <input type="range" id="K" min="100" max="50000" value="22500" step="50"
+               oninput="update()">
+        <div class="hint">Price at which you can buy (call) or sell (put) the stock</div>
+      </div>
+
+      <div class="input-group">
+        <div class="input-row">
+          <label>Time to Expiry (T) — days</label>
+          <div class="val-display" id="T-val">30 days</div>
+        </div>
+        <input type="range" id="T" min="1" max="365" value="30"
+               oninput="update()">
+        <div class="hint">NSE weekly expiry = 7 days. Monthly = 30 days. LEAPS = 365 days</div>
+      </div>
+
+      <div class="input-group">
+        <div class="input-row">
+          <label>Volatility (σ) — %</label>
+          <div class="val-display" id="sigma-val">18.0%</div>
+        </div>
+        <input type="range" id="sigma" min="1" max="100" value="18" step="0.5"
+               oninput="update()">
+        <div class="hint">Historical or implied volatility. Nifty 50 typical range: 12-25%</div>
+      </div>
+
+      <div class="input-group">
+        <div class="input-row">
+          <label>Risk-Free Rate (r) — %</label>
+          <div class="val-display" id="r-val">6.5%</div>
+        </div>
+        <input type="range" id="r" min="0" max="15" value="6.5" step="0.25"
+               oninput="update()">
+        <div class="hint">Use RBI repo rate as proxy. Currently ~6.5% in India</div>
+      </div>
+
+      <div class="input-group">
+        <div class="input-row">
+          <label>Market Option Price (for IV)</label>
+          <div class="val-display" id="mkt-val">₹320</div>
+        </div>
+        <input type="range" id="mkt" min="1" max="5000" value="320" step="5"
+               oninput="update()">
+        <div class="hint">Enter observed market price → we back-solve for Implied Volatility</div>
+      </div>
+    </div>
+
+    <!-- RESULTS PANEL -->
+    <div class="results-panel">
+      <div class="panel-title">Model Output</div>
+
+      <!-- PRICES -->
+      <div class="price-row">
+        <div class="price-box call">
+          <label>Call Price (C)</label>
+          <div class="big" id="call-price">—</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:4px"
+               id="call-sub"></div>
+        </div>
+        <div class="price-box put">
+          <label>Put Price (P)</label>
+          <div class="big" id="put-price">—</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:4px"
+               id="put-sub"></div>
+        </div>
+      </div>
+
+      <!-- GREEKS -->
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);
+                  letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px">
+        THE GREEKS — CALL / PUT
+      </div>
+      <div class="greeks-grid">
+        <div class="greek-cell">
+          <span class="symbol">Δ</span>
+          <span class="name">Delta</span>
+          <span class="val-c" id="delta-c">—</span>
+          <span class="val-p" id="delta-p">—</span>
+          <div class="labels"><span>call</span><span>put</span></div>
+        </div>
+        <div class="greek-cell">
+          <span class="symbol">Γ</span>
+          <span class="name">Gamma</span>
+          <span class="val-c" id="gamma">—</span>
+          <span class="val-p" style="color:var(--text3);font-family:var(--mono);
+                font-size:11px;display:block">same</span>
+        </div>
+        <div class="greek-cell">
+          <span class="symbol">ν</span>
+          <span class="name">Vega</span>
+          <span class="val-c" id="vega">—</span>
+          <span class="val-p" style="color:var(--text3);font-family:var(--mono);
+                font-size:11px;display:block">same</span>
+        </div>
+        <div class="greek-cell">
+          <span class="symbol">θ</span>
+          <span class="name">Theta</span>
+          <span class="val-c" id="theta-c">—</span>
+          <span class="val-p" id="theta-p">—</span>
+          <div class="labels"><span>call</span><span>put</span></div>
+        </div>
+        <div class="greek-cell">
+          <span class="symbol">ρ</span>
+          <span class="name">Rho</span>
+          <span class="val-c" id="rho-c">—</span>
+          <span class="val-p" id="rho-p">—</span>
+          <div class="labels"><span>call</span><span>put</span></div>
+        </div>
+      </div>
+
+      <!-- PUT-CALL PARITY -->
+      <div class="parity-box">
+        <h4>Put-Call Parity Check</h4>
+        <div class="formula-line">C - P = S - K·e^(-rT)</div>
+        <div class="check" id="parity-check">—</div>
+      </div>
+
+      <!-- IV OUTPUT -->
+      <div style="font-family:var(--mono);font-size:9px;color:var(--text3);
+                  letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px">
+        Implied Volatility (Newton-Raphson Method)
+      </div>
+      <div class="iv-row">
+        <div class="iv-cell">
+          <label>Implied Vol (Call)</label>
+          <div class="iv-val" id="iv-call">—</div>
+        </div>
+        <div class="iv-cell">
+          <label>IV vs Historical</label>
+          <div class="iv-val" id="iv-spread" style="color:var(--text2)">—</div>
+        </div>
+        <div class="iv-cell">
+          <label>Vol Premium</label>
+          <div class="iv-val" id="iv-premium">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="charts-row">
+    <div class="chart-box">
+      <h3>Option P&amp;L at Expiry vs Stock Price</h3>
+      <canvas id="pnl-chart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>Delta vs Stock Price (Δ Profile)</h3>
+      <canvas id="delta-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- MATH EXPLANATION -->
+  <div class="math-section">
+    <h2>The Mathematics — Explained From First Principles</h2>
+    <div class="math-grid">
+      <div>
+        <div class="formula-block">
+          <h4>Black-Scholes Formula</h4>
+          <div class="formula">
+            C = S·N(d₁) - K·e^(-rT)·N(d₂)<br><br>
+            P = K·e^(-rT)·N(-d₂) - S·N(-d₁)<br><br>
+            d₁ = [ln(S/K) + (r + σ²/2)·T] / (σ·√T)<br><br>
+            d₂ = d₁ - σ·√T
+          </div>
+          <div class="explain">
+            <strong>N(x)</strong> = cumulative normal distribution function (probability that a
+            standard normal variable is less than x). Think of it as the probability of the
+            option expiring in-the-money.<br><br>
+            <strong>S·N(d₁)</strong> = expected value of receiving the stock IF you exercise.<br>
+            <strong>K·e^(-rT)·N(d₂)</strong> = present value of paying strike K, weighted by
+            probability of exercise.<br><br>
+            <strong>e^(-rT)</strong> = discounting: ₹1 received in T years is worth less today.
+            With r=6.5% and T=30 days, e^(-0.065×30/365) ≈ 0.9947.
+          </div>
+        </div>
+
+        <div class="formula-block">
+          <h4>Put-Call Parity</h4>
+          <div class="formula">C - P = S - K·e^(-rT)</div>
+          <div class="explain">
+            This is a <strong>no-arbitrage relationship</strong>. If it breaks, you can make
+            risk-free profit. It means: knowing the call price and current stock price, you
+            can always calculate the fair put price — they are linked. This is one of the most
+            important concepts in all of derivatives pricing.
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="formula-block">
+          <h4>The Greeks — What Each Measures</h4>
+          <div class="formula">
+            Δ (Delta)  = N(d₁)              [call]<br>
+            Δ (Delta)  = N(d₁) - 1          [put]<br><br>
+            Γ (Gamma)  = N'(d₁)/(S·σ·√T)<br><br>
+            ν (Vega)   = S·N'(d₁)·√T<br><br>
+            θ (Theta)  = -[S·N'(d₁)·σ/(2√T)]<br>
+                         - r·K·e^(-rT)·N(d₂)<br><br>
+            ρ (Rho)    = K·T·e^(-rT)·N(d₂) [call]
+          </div>
+          <div class="explain">
+            <strong>Delta</strong>: If stock goes up ₹1, option price changes by Δ. Call delta 0.5
+            means option gains ₹0.50 per ₹1 stock move.<br><br>
+            <strong>Gamma</strong>: How fast delta changes. High gamma = delta changes rapidly with
+            stock price. Highest for at-the-money options near expiry.<br><br>
+            <strong>Vega</strong>: Option price change per 1% change in volatility. Important for
+            understanding vol risk.<br><br>
+            <strong>Theta</strong>: Daily time decay — how much the option loses per day just from
+            time passing. Option sellers earn theta. Negative for buyers.<br><br>
+            <strong>Rho</strong>: Sensitivity to interest rate changes. Matters more for long-dated
+            options and in high-rate environments.
+          </div>
+        </div>
+
+        <div class="formula-block">
+          <h4>Implied Volatility — Newton-Raphson</h4>
+          <div class="formula">
+            σ_{n+1} = σ_n - (BS(σ_n) - Market_Price)<br>
+                              ÷ Vega(σ_n)<br><br>
+            Repeat until |BS(σ) - Price| &lt; 0.001
+          </div>
+          <div class="explain">
+            We observe the <strong>market option price</strong> and ask: what volatility, when plugged
+            into Black-Scholes, gives exactly that price? We can't solve analytically, so we use
+            Newton-Raphson — an iterative method. Start with a guess (say σ=20%), compute the
+            BS price, compare to market price, adjust σ, repeat. Converges in 5-10 iterations.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONCEPTS EXPLAINED -->
+  <div class="explain-grid">
+    <div class="explain-card">
+      <h3>Why Black-Scholes Works</h3>
+      <p>
+        The model assumes the stock follows <strong>Geometric Brownian Motion</strong> —
+        prices are lognormally distributed (can't go below zero) and returns are normally
+        distributed. By continuously delta-hedging, you can replicate any option payoff
+        using the stock + cash, which gives a unique fair price. The key insight is that
+        in a complete market, there is exactly <strong>one arbitrage-free price</strong>.
+      </p>
+    </div>
+    <div class="explain-card">
+      <h3>Key Assumptions & Failures</h3>
+      <p>
+        BS assumes: <strong>constant volatility</strong> (violated — vol smiles exist),
+        <strong>continuous trading</strong> (can't hedge perfectly in reality),
+        <strong>no dividends</strong> (fixable), <strong>no jumps</strong> (crash risk
+        exists). The vol smile — implied vol varies with strike — is the biggest failure.
+        Real traders use BS as a quoting convention but manage the model's limitations
+        with local vol and stochastic vol models (Heston).
+      </p>
+    </div>
+    <div class="explain-card">
+      <h3>Interview Insight: Vol Surface</h3>
+      <p>
+        If BS were correct, implied vol would be <strong>flat across all strikes and
+        maturities</strong>. In reality, it forms a surface — OTM puts have higher IV
+        than ATM (crash protection demand), and short-dated ATM have different IV than
+        long-dated. This surface encodes the <strong>market's view of tail risk and
+        term structure of uncertainty</strong>. Managing the vol surface is a core quant
+        strategy skill.
+      </p>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+// ══════════════════════════════════════════════════════════
+// MATHS ENGINE — Black-Scholes implemented from scratch
+// Every function is annotated for beginner understanding
+// ══════════════════════════════════════════════════════════
+
+// Standard Normal PDF: the "bell curve" formula
+// N'(x) = (1/√(2π)) · e^(-x²/2)
+function normpdf(x) {
+  return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+}
+
+// Standard Normal CDF using rational approximation (Abramowitz & Stegun)
+// N(x) = P(Z ≤ x) where Z ~ N(0,1)
+// This is the probability that a standard normal is less than x
+function normcdf(x) {
+  const a1= 0.254829592, a2=-0.284496736, a3= 1.421413741;
+  const a4=-1.453152027, a5= 1.061405429, p = 0.3275911;
+  const sign = x < 0 ? -1 : 1;
+  x = Math.abs(x);
+  const t = 1.0 / (1.0 + p * x);
+  const poly = ((((a5*t + a4)*t + a3)*t + a2)*t + a1)*t;
+  return 0.5 * (1.0 + sign * (1 - poly * Math.exp(-x*x)));
+}
+
+// MAIN: compute d1 and d2
+// d1 = [ln(S/K) + (r + σ²/2)·T] / (σ·√T)
+// d2 = d1 - σ·√T
+function computeD(S, K, T, r, sigma) {
+  const lnSK = Math.log(S / K);          // ln(S/K)
+  const halfSig2 = 0.5 * sigma * sigma;  // σ²/2
+  const sigSqrtT = sigma * Math.sqrt(T); // σ·√T
+  const d1 = (lnSK + (r + halfSig2) * T) / sigSqrtT;
+  const d2 = d1 - sigSqrtT;
+  return { d1, d2, sigSqrtT };
+}
+
+// CALL PRICE: C = S·N(d1) - K·e^(-rT)·N(d2)
+function callPrice(S, K, T, r, sigma) {
+  const { d1, d2 } = computeD(S, K, T, r, sigma);
+  return S * normcdf(d1) - K * Math.exp(-r * T) * normcdf(d2);
+}
+
+// PUT PRICE:  P = K·e^(-rT)·N(-d2) - S·N(-d1)
+function putPrice(S, K, T, r, sigma) {
+  const { d1, d2 } = computeD(S, K, T, r, sigma);
+  return K * Math.exp(-r * T) * normcdf(-d2) - S * normcdf(-d1);
+}
+
+// GREEKS
+function greeks(S, K, T, r, sigma) {
+  const { d1, d2, sigSqrtT } = computeD(S, K, T, r, sigma);
+  const Nd1  = normcdf(d1),  Nd2  = normcdf(d2);
+  const Npd1 = normpdf(d1);                       // N'(d1)
+  const disc = Math.exp(-r * T);                  // e^(-rT)
+
+  // DELTA: dC/dS and dP/dS
+  const deltaCall = Nd1;
+  const deltaPut  = Nd1 - 1;
+
+  // GAMMA: d²C/dS² — same for call and put
+  // Γ = N'(d1) / (S·σ·√T)
+  const gamma = Npd1 / (S * sigSqrtT);
+
+  // VEGA: dC/dσ — same for call and put (per 1% move in vol)
+  // ν = S·N'(d1)·√T  → divide by 100 for per-1%-vol
+  const vega = S * Npd1 * Math.sqrt(T) / 100;
+
+  // THETA: time decay per calendar day
+  // θ_call = -[S·N'(d1)·σ/(2√T)] - r·K·e^(-rT)·N(d2)
+  const thetaCall = (-S * Npd1 * sigma / (2 * Math.sqrt(T))
+                    - r * K * disc * Nd2) / 365;
+  const thetaPut  = (-S * Npd1 * sigma / (2 * Math.sqrt(T))
+                    + r * K * disc * normcdf(-d2)) / 365;
+
+  // RHO: sensitivity to interest rate (per 1% rate move)
+  const rhoCall = K * T * disc * Nd2  / 100;
+  const rhoPut  = -K * T * disc * normcdf(-d2) / 100;
+
+  return { deltaCall, deltaPut, gamma, vega, thetaCall, thetaPut, rhoCall, rhoPut, d1, d2, Nd1, Nd2 };
+}
+
+// IMPLIED VOLATILITY via Newton-Raphson iteration
+// We want: BS(σ) = Market_Price
+// Newton step: σ_new = σ_old - (BS(σ_old) - Price) / Vega(σ_old)
+function impliedVol(S, K, T, r, marketPrice, isCall=true) {
+  let sigma = 0.20;                        // initial guess: 20%
+  for (let i = 0; i < 100; i++) {
+    const price  = isCall ? callPrice(S, K, T, r, sigma)
+                          : putPrice(S, K, T, r, sigma);
+    const { d1 } = computeD(S, K, T, r, sigma);
+    const vega   = S * normpdf(d1) * Math.sqrt(T); // raw vega
+
+    const diff = price - marketPrice;
+    if (Math.abs(diff) < 0.0001) break;   // converged
+    if (Math.abs(vega) < 1e-8) break;     // avoid division by zero
+    sigma = sigma - diff / vega;           // Newton-Raphson step
+    sigma = Math.max(0.001, Math.min(sigma, 10)); // keep in bounds
+  }
+  return sigma;
+}
+
+// ══════════════════════════════════════════════════════════
+// PRESETS — real approximate NSE market data
+// ══════════════════════════════════════════════════════════
+const PRESETS = {
+  NIFTY:   { S:22450, K:22500, T:30,  sigma:18, r:6.5, mkt:320 },
+  HDFC:    { S:1640,  K:1660,  T:30,  sigma:22, r:6.5, mkt:28  },
+  BAJAJ:   { S:7200,  K:7250,  T:30,  sigma:28, r:6.5, mkt:180 },
+  RELIANCE:{ S:2890,  K:2900,  T:30,  sigma:20, r:6.5, mkt:58  },
+  INFY:    { S:1430,  K:1450,  T:30,  sigma:24, r:6.5, mkt:22  },
+  ICICI:   { S:1090,  K:1100,  T:30,  sigma:21, r:6.5, mkt:19  },
+};
+
+function loadPreset(key) {
+  const p = PRESETS[key];
+  document.getElementById('S').value     = p.S;
+  document.getElementById('K').value     = p.K;
+  document.getElementById('T').value     = p.T;
+  document.getElementById('sigma').value = p.sigma;
+  document.getElementById('r').value     = p.r;
+  document.getElementById('mkt').value   = p.mkt;
+  document.querySelectorAll('.stock-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  update();
+}
+
+// ══════════════════════════════════════════════════════════
+// UPDATE FUNCTION — runs on every slider change
+// ══════════════════════════════════════════════════════════
+let pnlChart = null, deltaChart = null;
+
+function fmt(n, dec=2) { return n.toFixed(dec); }
+function fmtRs(n) {
+  return '₹' + n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function update() {
+  // Read inputs
+  const S     = +document.getElementById('S').value;
+  const K     = +document.getElementById('K').value;
+  const T_d   = +document.getElementById('T').value;      // in days
+  const sigma = +document.getElementById('sigma').value / 100; // convert % to decimal
+  const r     = +document.getElementById('r').value / 100;     // convert % to decimal
+  const mkt   = +document.getElementById('mkt').value;
+  const T     = T_d / 365;                                     // convert days to years
+
+  // Update display labels
+  document.getElementById('S-val').textContent    = S.toLocaleString('en-IN');
+  document.getElementById('K-val').textContent    = K.toLocaleString('en-IN');
+  document.getElementById('T-val').textContent    = T_d + ' days';
+  document.getElementById('sigma-val').textContent = (sigma*100).toFixed(1) + '%';
+  document.getElementById('r-val').textContent    = (r*100).toFixed(2) + '%';
+  document.getElementById('mkt-val').textContent  = '₹' + mkt;
+
+  // Compute BS prices
+  const C = callPrice(S, K, T, r, sigma);
+  const P = putPrice(S, K, T, r, sigma);
+  const G = greeks(S, K, T, r, sigma);
+
+  // Moneyness label
+  const moneyness = S > K ? 'ITM' : S < K ? 'OTM' : 'ATM';
+
+  // Display prices
+  document.getElementById('call-price').textContent = fmtRs(C);
+  document.getElementById('call-sub').textContent   = `d₁=${fmt(G.d1)} | d₂=${fmt(G.d2)} | ${moneyness}`;
+  document.getElementById('put-price').textContent  = fmtRs(P);
+  document.getElementById('put-sub').textContent    = `N(d₁)=${fmt(G.Nd1,3)} | N(d₂)=${fmt(G.Nd2,3)}`;
+
+  // Greeks
+  document.getElementById('delta-c').textContent = fmt(G.deltaCall, 4);
+  document.getElementById('delta-p').textContent = fmt(G.deltaPut,  4);
+  document.getElementById('gamma').textContent   = fmt(G.gamma,     5);
+  document.getElementById('vega').textContent    = '₹' + fmt(G.vega, 2) + '/1%';
+  document.getElementById('theta-c').textContent = '₹' + fmt(G.thetaCall, 2) + '/day';
+  document.getElementById('theta-p').textContent = '₹' + fmt(G.thetaPut,  2) + '/day';
+  document.getElementById('rho-c').textContent   = '₹' + fmt(G.rhoCall, 2) + '/1%';
+  document.getElementById('rho-p').textContent   = '₹' + fmt(G.rhoPut,  2) + '/1%';
+
+  // Put-Call Parity check
+  const lhs = C - P;                                    // left side: C - P
+  const rhs = S - K * Math.exp(-r * T);                 // right side: S - Ke^(-rT)
+  const diff = Math.abs(lhs - rhs);
+  document.getElementById('parity-check').innerHTML =
+    `LHS (C-P): <strong>${fmtRs(lhs)}</strong> &nbsp;|&nbsp; ` +
+    `RHS (S-Ke^(-rT)): <strong>${fmtRs(rhs)}</strong> &nbsp;` +
+    `<span class="${diff<0.01?'ok':''}">` +
+    `[Diff: ${fmtRs(diff)} — ${diff<0.01?'✓ Parity holds':'⚠ Check inputs'}]</span>`;
+
+  // Implied Volatility
+  const iv = impliedVol(S, K, T, r, mkt, true);
+  const ivPct = iv * 100;
+  const histvol = sigma * 100;
+  const spread  = ivPct - histvol;
+  document.getElementById('iv-call').textContent    = ivPct.toFixed(1) + '%';
+  document.getElementById('iv-spread').textContent  = spread > 0
+    ? '+' + spread.toFixed(1) + '%'
+    : spread.toFixed(1) + '%';
+  document.getElementById('iv-premium').textContent =
+    spread > 0 ? 'Expensive' : spread < -2 ? 'Cheap' : 'Fair';
+  document.getElementById('iv-premium').style.color =
+    spread > 2 ? 'var(--red)' : spread < -2 ? 'var(--green)' : 'var(--amber)';
+  document.getElementById('iv-spread').style.color  =
+    spread > 0 ? 'var(--red)' : 'var(--green)';
+
+  // Update charts
+  updateCharts(S, K, T, r, sigma, C, P);
+}
+
+// ══════════════════════════════════════════════════════════
+// CHARTS
+// ══════════════════════════════════════════════════════════
+function updateCharts(S, K, T, r, sigma, C, P) {
+  const prices = [];
+  const callPnl = [], putPnl = [], callDelta = [], putDelta = [];
+
+  for (let pct = 0.6; pct <= 1.4; pct += 0.02) {
+    const s = S * pct;
+    prices.push(Math.round(s));
+    // P&L at expiry (intrinsic value minus premium paid)
+    callPnl.push(Math.max(0, s - K) - C);
+    putPnl.push(Math.max(0, K - s) - P);
+    // Delta profile
+    const { d1 } = computeD(s, K, T, r, sigma);
+    callDelta.push(normcdf(d1));
+    putDelta.push(normcdf(d1) - 1);
+  }
+
+  const chartDefaults = {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: { legend: { labels: { color:'#7A9AB8', font:{family:'IBM Plex Mono',size:10} } } },
+    scales: {
+      x: { ticks:{color:'#3D5A78',font:{size:9},maxTicksLimit:8},
+           grid:{color:'#1A2B42'} },
+      y: { ticks:{color:'#3D5A78',font:{size:9}},
+           grid:{color:'#1A2B42'} }
+    }
+  };
+
+  // P&L Chart
+  const pnlCtx = document.getElementById('pnl-chart').getContext('2d');
+  if (pnlChart) pnlChart.destroy();
+  pnlChart = new Chart(pnlCtx, {
+    type: 'line',
+    data: {
+      labels: prices,
+      datasets: [
+        { label:'Long Call P&L', data:callPnl, borderColor:'#00FF88',
+          borderWidth:2, pointRadius:0, fill:false, tension:0.1 },
+        { label:'Long Put P&L',  data:putPnl,  borderColor:'#FF3D5A',
+          borderWidth:2, pointRadius:0, fill:false, tension:0.1 },
+      ]
+    },
+    options: { ...chartDefaults,
+      plugins: { ...chartDefaults.plugins,
+        annotation: {},
+      },
+      scales: { ...chartDefaults.scales,
+        y: { ...chartDefaults.scales.y,
+          ticks:{ ...chartDefaults.scales.y.ticks,
+            callback: v => '₹'+v.toFixed(0) } } }
+    }
+  });
+
+  // Delta Chart
+  const dCtx = document.getElementById('delta-chart').getContext('2d');
+  if (deltaChart) deltaChart.destroy();
+  deltaChart = new Chart(dCtx, {
+    type: 'line',
+    data: {
+      labels: prices,
+      datasets: [
+        { label:'Call Δ', data:callDelta, borderColor:'#00FF88',
+          borderWidth:2, pointRadius:0, fill:false, tension:0.3 },
+        { label:'Put Δ',  data:putDelta,  borderColor:'#FF3D5A',
+          borderWidth:2, pointRadius:0, fill:false, tension:0.3 },
+      ]
+    },
+    options: { ...chartDefaults,
+      scales: { ...chartDefaults.scales,
+        y: { ...chartDefaults.scales.y, min:-1, max:1 } }
+    }
+  });
+}
+
+// Init on load
+update();
+</script>
+</body>
+</html>
