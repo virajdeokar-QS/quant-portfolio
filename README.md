@@ -17,4 +17,4 @@ Financial Markets Analyst building systematic quant strategies.
 Python · NumPy · Pandas · XGBoost · Matplotlib · NSE Data · Bloomberg
 
 ## Live Portfolio
-https://YOUR_USERNAME.github.io/quant-portfolio
+https://virajdeokar-QS.github.io/quant-portfolio
